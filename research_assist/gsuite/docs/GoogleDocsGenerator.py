@@ -99,7 +99,7 @@ class GoogleDocsGenerator:
             .batchUpdate(documentId=doc_id, body={"requests": requests})
             .execute()
         )
-        end_index = len(title_template) + len(template) + 2
+        end_index = len(title_template) + len(template) + 1
         return end_index
 
     def write_text_to_doc(self, start_index: int, text: str, doc_id: str) -> int:
@@ -123,6 +123,20 @@ class GoogleDocsGenerator:
                         "index": start_index,
                     },
                     "text": text,
+                }
+            },
+            {
+                "updateParagraphStyle": {
+                    "range": {
+                        "startIndex": start_index,
+                        "endIndex": start_index + len(text),
+                    },
+                    "paragraphStyle": {
+                        "namedStyleType": "NORMAL_TEXT",
+                        "spaceAbove": {"magnitude": 1.0, "unit": "PT"},
+                        "spaceBelow": {"magnitude": 1.0, "unit": "PT"},
+                    },
+                    "fields": "namedStyleType,spaceAbove,spaceBelow",
                 }
             },
         ]

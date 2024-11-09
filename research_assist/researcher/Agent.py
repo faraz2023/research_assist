@@ -1,9 +1,21 @@
-from research_assist.researcher.AgentNodes import AgentNodes, AgentState
+from research_assist.researcher.AgentComponents import (
+    AgentNodes,
+    AgentState,
+    AgentEdges,
+)
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.sqlite import SqliteSaver
 from dotenv import load_dotenv
 import os
 from typing import Dict, Any, List
+import logging
+
+logging.basicConfig(
+    format="%(name)s: %(asctime)s | %(levelname)s | %(filename)s:%(lineno)s | %(process)d >>> %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%SZ",
+)
+logger = logging.getLogger("Agent")
+logger.setLevel(logging.INFO)
 
 
 def load_secrets(env_path: str = ".env") -> Dict[str, str]:
@@ -50,6 +62,8 @@ class ResearchAgent:
             searcher (Any): The searcher used for retrieving relevant information.
         """
         self.nodes = AgentNodes(model, searcher)
+        self.edges = AgentEdges()
+        logger.info("Setting up agent graph")
         self.agent = self._setup()
 
     def _setup(self) -> StateGraph:
@@ -63,28 +77,48 @@ class ResearchAgent:
             StateGraph: The configured state graph for the research agent.
         """
         agent = StateGraph(AgentState)
+
+        ## Nodes
         agent.add_node("initial_plan", self.nodes.plan_node)
         agent.add_node("write", self.nodes.generation_node)
         agent.add_node("review", self.nodes.review_node)
-        agent.add_node("research_plan", self.nodes.research_plan_node)
+        agent.add_node("do_research", self.nodes.research_plan_node)
         agent.add_node("research_revise", self.nodes.research_critique_node)
         agent.add_node("reject", self.nodes.reject_node)
         agent.add_node("accept", self.nodes.accept_node)
+        agent.add_node("editor", self.nodes.editor_node)
+
+        ## Edges
         agent.set_entry_point("initial_plan")
+        agent.add_edge("initial_plan", "do_research")
+        agent.add_edge("do_research", "write")
+        agent.add_edge("write", "editor")
+
+        ## Conditional edges
         agent.add_conditional_edges(
-            "write",
-            self.nodes.should_continue,
+            "editor",
+            self.edges.should_continue,
             {"accepted": "accept", "to_review": "review", "rejected": "reject"},
         )
-
-        agent.add_edge("initial_plan", "research_plan")
-        agent.add_edge("research_plan", "write")
         agent.add_edge("review", "research_revise")
         agent.add_edge("research_revise", "write")
         agent.add_edge("reject", END)
         agent.add_edge("accept", END)
 
         return agent
+
+    def display_components(self, stage, verbose=True):
+
+        logger.info("#" * 20)
+        level_1_keys = list(stage.keys())
+        for k1 in level_1_keys:
+            level_2_keys = list(stage[k1].keys())
+            logger.info(f"Node : {k1}")
+            for k2 in level_2_keys:
+                logger.info(f"Task : {k2}")
+                if verbose:
+                    logger.info(stage[k1][k2])
+        logger.info("#" * 20)
 
     def run_task(self, task_description: str, max_revisions: int = 1) -> List[Any]:
         """
@@ -104,16 +138,18 @@ class ResearchAgent:
             graph = self.agent.compile(checkpointer=checkpointer)
             results = []
             thread = {"configurable": {"thread_id": "1"}}
-            for s in graph.stream(
-                {
-                    "task": task_description,
-                    "max_revisions": max_revisions,
-                    "revision_number": 1,
-                },
-                thread,
+            for i, s in enumerate(
+                graph.stream(
+                    {
+                        "task": task_description,
+                        "max_revisions": max_revisions,
+                        "revision_number": 1,
+                    },
+                    thread,
+                )
             ):
-                print("#" * 20)
-                print(s)
+                logger.info(f"Agent at stage {i+1}")
+                self.display_components(s)
                 results.append(s)
 
         return results

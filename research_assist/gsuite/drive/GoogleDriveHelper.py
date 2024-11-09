@@ -1,6 +1,7 @@
 from research_assist.gsuite.drive.GoogleDriveService import GoogleDriveService
 from googleapiclient.http import MediaFileUpload
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+from googleapiclient.errors import HttpError
 
 
 class GoogleDriveHelper:
@@ -24,6 +25,50 @@ class GoogleDriveHelper:
         self.folder_name = folder_name
         self.drive_service = GoogleDriveService().build()
         self.top_level_folder_id = self.get_folder_id()
+
+    def search_for_files(self) -> List:
+        """
+        See https://developers.google.com/drive/api/guides/search-files#python
+        """
+
+        # create drive api client
+        files = []
+        page_token = None
+        try:
+            while True:
+                # pylint: disable=maybe-no-member
+                response = (
+                    self.drive_service.files()
+                    .list(
+                        spaces="drive",
+                        fields="nextPageToken, files(id, name)",
+                        pageToken=page_token,
+                    )
+                    .execute()
+                )
+                for file in response.get("files"):
+                    # Process change
+                    print(f'Found file: {file.get("name")}, {file.get("id")}')
+
+                    file_id = file.get("id")
+                    file_name = file.get("name")
+
+                    files.append(
+                        {
+                            "id": file_id,
+                            "name": file_name,
+                        }
+                    )
+
+                page_token = response.get("nextPageToken", None)
+                if page_token is None:
+                    break
+
+        except HttpError as error:
+            print(f"An error occurred: {error}")
+            files = None
+
+        return files
 
     @staticmethod
     def create_export_link(file_id: str) -> str:

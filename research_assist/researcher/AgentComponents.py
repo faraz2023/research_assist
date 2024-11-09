@@ -13,6 +13,14 @@ from research_assist.researcher.prompts import (
 from typing import List, Dict, Any
 from pydantic import BaseModel
 from typing_extensions import TypedDict
+import logging
+
+logging.basicConfig(
+    format="%(name)s: %(asctime)s | %(levelname)s | %(filename)s:%(lineno)s | %(process)d >>> %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%SZ",
+)
+logger = logging.getLogger("AgentNodes")
+logger.setLevel(logging.INFO)
 
 
 class AgentState(TypedDict):
@@ -35,6 +43,7 @@ class AgentState(TypedDict):
     draft: str
     critique: str
     content: List[str]
+    editor_comment: str
     revision_number: int
     max_revisions: int
     finalized_state: bool
@@ -60,6 +69,7 @@ class FinalizedState(BaseModel):
     """
 
     state: bool
+    reasoning: str
 
 
 class AgentNodes:
@@ -138,19 +148,36 @@ class AgentNodes:
             Dict[str, Any]: A dictionary containing the generated draft and updated revision number.
         """
         content = "\n\n".join(state.get("content", []))
-        user_message = HumanMessage(
-            content=f"{state['task']}\n\nHere is my plan:\n\n{state['plan']}"
+        reviewer_critique = state.get(
+            "critique",
+            "The article has not been reviewed yet, so there are no reviewer comments available",
+        )
+        previous_draft = state.get("draft", "There is no previous draft available")
+        editor_comment = state.get(
+            "editor_comment", "There is no previous editor comment available"
         )
         messages = [
             SystemMessage(
                 content=ResearchWritePrompt.system_template.format(content=content)
             ),
-            user_message,
+            HumanMessage(content="The original task: {}".format(state["task"])),
+            HumanMessage(content="The original plan: {}".format(state["plan"])),
+            HumanMessage(content="The previous draft: {}".format(previous_draft)),
+            HumanMessage(
+                content="The reviewer comments about the previous draft: {}".format(
+                    reviewer_critique
+                )
+            ),
+            HumanMessage(
+                content="The editor comments about the previous draft and review: {}".format(
+                    editor_comment
+                )
+            ),
         ]
         response = self.model.invoke(messages)
         return {
             "draft": response.content,
-            "revision_number": state.get("revision_number", 1) + 1,
+            "revision_number": state.get("revision_number", -1) + 1,
         }
 
     def review_node(self, state: AgentState) -> Dict[str, str]:
@@ -194,20 +221,12 @@ class AgentNodes:
                 content.append(r["content"])
         return {"content": content}
 
-    def should_continue(self, state: AgentState) -> str:
-        """
-        Determine whether the research process should continue based on the current state.
+    def editor_node(self, state: AgentState):
 
-        Args:
-            state (AgentState): The current state of the research agent.
-
-        Returns:
-            str: The next state to transition to ("to_review", "accepted", or "rejected").
-        """
         # always send to review if we don't have a review yet
         current_reviewer_comments = state.get("critique", [])
         if not current_reviewer_comments:
-            return "to_review"
+            current_reviewer_comments = "The article has not been reviewed yer"
 
         continue_state = self.model.with_structured_output(FinalizedState).invoke(
             [
@@ -217,16 +236,19 @@ class AgentNodes:
                         current_reviewer_comments
                     )
                 ),
-                HumanMessage(content="The current essay: {}".format(state["content"])),
+                HumanMessage(
+                    content="The article has been through {} of revision".format(
+                        state["revision_number"]
+                    )
+                ),
+                HumanMessage(content="The original task {}".format(state["task"])),
+                HumanMessage(content="The current essay: {}".format(state["draft"])),
             ]
         )
         editor_accepts = continue_state.state
-        if editor_accepts:
-            return "accepted"
-        elif state["revision_number"] > state["max_revisions"]:
-            return "rejected"
-        else:
-            return "to_review"
+        editor_reasoning = continue_state.reasoning
+
+        return {"finalized_state": editor_accepts, "editor_comment": editor_reasoning}
 
     def reject_node(self, state: AgentState) -> Dict[str, bool]:
         """
@@ -251,3 +273,31 @@ class AgentNodes:
             Dict[str, bool]: A dictionary indicating the finalized state as True.
         """
         return {"finalized_state": True}
+
+
+class AgentEdges:
+
+    @staticmethod
+    def should_continue(state: AgentState) -> str:
+        """
+        Determine whether the research process should continue based on the current state.
+
+        Args:
+            state (AgentState): The current state of the research agent.
+
+        Returns:
+            str: The next state to transition to ("to_review", "accepted", or "rejected").
+        """
+        # always send to review if editor hasn't made comments yet
+        current_editor_comments = state.get("editor_comment", [])
+        if not current_editor_comments:
+            return "to_review"
+
+        final_state = state.get("finalized_state", False)
+        if final_state:
+            return "accepted"
+        elif state["revision_number"] > state["max_revisions"]:
+            logger.info("Revision number > max allowed revisions")
+            return "rejected"
+        else:
+            return "to_review"
