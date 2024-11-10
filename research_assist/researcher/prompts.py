@@ -8,7 +8,7 @@ class ResearchPlanPrompt:
     Write such an outline for the user-provided topic. Include relevant notes or instructions for each section.
     The style of the research report should be geared towards the educated public. It should be detailed enough to provide
     a good level of understanding of the topic, but not unnecessarily dense. Think of it more like a whitepaper to be consumed 
-    by a business leader than an academic journal article. 
+    by a business leader rather than an academic journal article. 
     """
 
 

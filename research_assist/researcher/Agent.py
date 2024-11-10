@@ -4,10 +4,14 @@ from research_assist.researcher.AgentComponents import (
     AgentEdges,
 )
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.sqlite import SqliteSaver
+
+# from langgraph.checkpoint.sqlite import SqliteSaver
 from dotenv import load_dotenv
 import os
 from typing import Dict, Any, List
+from langgraph.store.memory import InMemoryStore
+from langgraph.checkpoint.memory import MemorySaver
+import uuid
 import logging
 
 logging.basicConfig(
@@ -134,22 +138,53 @@ class ResearchAgent:
         Returns:
             List[Any]: A list of results generated during the task execution.
         """
-        with SqliteSaver.from_conn_string(":memory:") as checkpointer:
-            graph = self.agent.compile(checkpointer=checkpointer)
-            results = []
-            thread = {"configurable": {"thread_id": "1"}}
-            for i, s in enumerate(
-                graph.stream(
-                    {
-                        "task": task_description,
-                        "max_revisions": max_revisions,
-                        "revision_number": 1,
-                    },
-                    thread,
-                )
-            ):
-                logger.info(f"Agent at stage {i+1}")
-                self.display_components(s)
-                results.append(s)
+
+        checkpointer = MemorySaver()
+        self.in_memory_store = InMemoryStore()
+        graph = self.agent.compile(
+            checkpointer=checkpointer, store=self.in_memory_store
+        )
+        results = []
+        # Invoke the graph
+        user_id = "1"
+        config = {"configurable": {"thread_id": "1", "user_id": user_id}}
+        namespace = (user_id, "memories")
+
+        for i, update in enumerate(
+            graph.stream(
+                {
+                    "task": task_description,
+                    "max_revisions": max_revisions,
+                    "revision_number": 0,
+                },
+                config,
+                stream_mode="updates",
+            )
+        ):
+            self.display_components(update)
+            memory_id = str(uuid.uuid4())
+            self.in_memory_store.put(namespace, memory_id, {"memory": update})
+            results.append(update)
+            logger.info(f"Agent at stage {i + 1}")
 
         return results
+
+        # with SqliteSaver.from_conn_string(":memory:") as checkpointer:
+        #     graph = self.agent.compile(checkpointer=checkpointer)
+        #     results = []
+        #     thread = {"configurable": {"thread_id": "1"}}
+        #     for i, s in enumerate(
+        #         graph.stream(
+        #             {
+        #                 "task": task_description,
+        #                 "max_revisions": max_revisions,
+        #                 "revision_number": 1,
+        #             },
+        #             thread,
+        #         )
+        #     ):
+        #         logger.info(f"Agent at stage {i+1}")
+        #         self.display_components(s)
+        #         results.append(s)
+
+        # return results
