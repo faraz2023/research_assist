@@ -87,7 +87,7 @@ class ResearchAgent:
         agent.add_node("write", self.nodes.generation_node)
         agent.add_node("review", self.nodes.review_node)
         agent.add_node("do_research", self.nodes.research_plan_node)
-        agent.add_node("research_revise", self.nodes.research_critique_node)
+        agent.add_node("research_revise", self.nodes.research_response_node)
         agent.add_node("reject", self.nodes.reject_node)
         agent.add_node("accept", self.nodes.accept_node)
         agent.add_node("editor", self.nodes.editor_node)

@@ -5,9 +5,10 @@ from langchain_core.messages import (
 from research_assist.researcher.prompts import (
     ResearchPlanPrompt,
     ResearchEditorPrompt,
-    ResearchCritiquePrompt,
+    ResearchResponsePrompt,
     ResearchReviewPrompt,
     ResearchWritePrompt,
+    ResearchQueryPrompt,
 )
 
 from typing import List, Dict, Any
@@ -124,7 +125,7 @@ class AgentNodes:
         """
         queries = self.model.with_structured_output(Queries).invoke(
             [
-                SystemMessage(content=ResearchPlanPrompt.system_template),
+                SystemMessage(content=ResearchQueryPrompt.system_template),
                 HumanMessage(content=state["task"]),
             ]
         )
@@ -132,7 +133,7 @@ class AgentNodes:
 
         for q in queries.queries:
             # do the research with tavily searcher
-            response = self.searcher.search(query=q, max_results=5)
+            response = self.searcher.search(query=q, max_results=2)
             for r in response["results"]:
                 content.append(r["content"])
         return {"content": content}
@@ -197,7 +198,7 @@ class AgentNodes:
         response = self.model.invoke(messages)
         return {"critique": response.content}
 
-    def research_critique_node(self, state: AgentState) -> Dict[str, List[str]]:
+    def research_response_node(self, state: AgentState) -> Dict[str, List[str]]:
         """
         Generate search queries based on the critique and perform research.
 
@@ -209,14 +210,14 @@ class AgentNodes:
         """
         queries = self.model.with_structured_output(Queries).invoke(
             [
-                SystemMessage(content=ResearchCritiquePrompt.system_template),
+                SystemMessage(content=ResearchResponsePrompt.system_template),
                 HumanMessage(content=state["critique"]),
             ]
         )
         content = state["content"] or []
         for q in queries.queries:
             # do the research with tavily searcher
-            response = self.searcher.search(query=q, max_results=5)
+            response = self.searcher.search(query=q, max_results=2)
             for r in response["results"]:
                 content.append(r["content"])
         return {"content": content}

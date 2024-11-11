@@ -41,7 +41,7 @@ class ResearchReviewPrompt:
 
 
 @dataclass
-class ResearchQueryPrompt:  # Renamed to avoid duplication
+class ResearchQueryPrompt:
     system_template: str = """
     You are a researcher tasked with generating information that can 
     be used when writing the following report. Create a list of search queries that will gather
@@ -50,7 +50,7 @@ class ResearchQueryPrompt:  # Renamed to avoid duplication
 
 
 @dataclass
-class ResearchCritiquePrompt:
+class ResearchResponsePrompt:
     system_template: str = """
     You are a researcher responsible for providing information that can 
     be used when making any requested revisions (as outlined below). 
