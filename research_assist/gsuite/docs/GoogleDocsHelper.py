@@ -3,7 +3,7 @@ import datetime
 from typing import Any, Dict, List
 
 
-class GoogleDocsGenerator:
+class GoogleDocsHelper:
     """
     A class to generate and manipulate Google Docs documents.
 
@@ -42,7 +42,7 @@ class GoogleDocsGenerator:
             int: The index after the inserted header.
         """
         # add template header
-        title_template = f"""
+        title = f"""
         {document_title}
         """
         template = f"""
@@ -54,22 +54,22 @@ class GoogleDocsGenerator:
                     "location": {
                         "index": 1,
                     },
-                    "text": title_template,
+                    "text": template,
                 }
             },
             {
                 "insertText": {
                     "location": {
-                        "index": len(title_template) + 1,
+                        "index": 1,
                     },
-                    "text": template,
+                    "text": title,
                 }
             },
             {
                 "updateParagraphStyle": {
                     "range": {
                         "startIndex": 1,
-                        "endIndex": len(title_template),
+                        "endIndex": len(title),
                     },
                     "paragraphStyle": {
                         "namedStyleType": "TITLE",
@@ -82,8 +82,8 @@ class GoogleDocsGenerator:
             {
                 "updateParagraphStyle": {
                     "range": {
-                        "startIndex": len(title_template) + 1,
-                        "endIndex": len(title_template) + len(template),
+                        "startIndex": len(title) + 1,
+                        "endIndex": len(title) + len(template),
                     },
                     "paragraphStyle": {
                         "namedStyleType": "SUBTITLE",
@@ -99,7 +99,7 @@ class GoogleDocsGenerator:
             .batchUpdate(documentId=doc_id, body={"requests": requests})
             .execute()
         )
-        end_index = len(title_template) + len(template) + 1
+        end_index = len(title) + len(template) + 1
         return end_index
 
     def write_text_to_doc(self, start_index: int, text: str, doc_id: str) -> int:
@@ -114,7 +114,7 @@ class GoogleDocsGenerator:
         Returns:
             int: The index after the inserted text.
         """
-        end_index = start_index + len(text)
+        end_index = start_index + len(text) + 1
 
         requests: List[Dict[str, Any]] = [
             {
@@ -147,7 +147,7 @@ class GoogleDocsGenerator:
             .execute()
         )
 
-        return end_index + 1
+        return end_index
 
     def write_image_to_doc(self, start_index: int, image_url: str, doc_id: str) -> int:
         """

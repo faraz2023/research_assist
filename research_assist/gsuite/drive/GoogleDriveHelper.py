@@ -26,14 +26,70 @@ class GoogleDriveHelper:
         self.drive_service = GoogleDriveService().build()
         self.top_level_folder_id = self.get_folder_id()
 
-    def search_for_files(self) -> List:
+    def get_folder_id_from_name(self, folder_name: str) -> List[Dict[str, str]]:
         """
-        See https://developers.google.com/drive/api/guides/search-files#python
-        """
+        Retrieve the ID of a Google Drive folder by its name.
 
+        Args:
+            folder_name (str): The name of the folder to search for.
+
+        Returns:
+            list: A list of dictionaries containing the folder ID and name.
+                  Each dictionary has the keys 'id' and 'name'.
+                  If no folder is found, returns an empty list.
+        """
+        query = f"mimeType = 'application/vnd.google-apps.folder' and trashed = false and name = '{folder_name}'"
+        response = (
+            self.drive_service.files()
+            .list(
+                q=query,
+                spaces="drive",
+                fields="nextPageToken, files(id, name)"
+            )
+            .execute()
+        )
+        files = response.get("files", [])
+        return files
+
+    def get_file_id_from_name(self, file_name: str) -> List[Dict[str, str]]:
+        """
+        Retrieve the ID of a file in Google Drive by its name.
+
+        Args:
+            file_name (str): The name of the file to search for.
+
+        Returns:
+            list: A list of dictionaries containing the file ID and name.
+                  Each dictionary has the keys 'id' and 'name'.
+                  If no file is found, returns an empty list.
+        """
+        query = f"mimeType != 'application/vnd.google-apps.folder' and trashed = false and name = '{file_name}'"
+        response = (
+            self.drive_service.files()
+            .list(
+                q=query,
+                spaces="drive",
+                fields="nextPageToken, files(id, name)"
+            )
+            .execute()
+        )
+        files = response.get("files", [])
+        return files
+
+    def list_all_files(self) -> Optional[List[Dict[str, str]]]:
+        """
+        List all files in the user's Google Drive.
+
+        This method retrieves all files, paginating through results if necessary.
+        Each file's ID and name are printed to the console and collected in a list.
+
+        Returns:
+            list: A list of dictionaries, each containing the file ID and name.
+                  If an error occurs during the API call, returns None.
+        """
         # create drive api client
-        files = []
-        page_token = None
+        files: List[Dict[str, str]] = []
+        page_token: Optional[str] = None
         try:
             while True:
                 # pylint: disable=maybe-no-member
@@ -46,7 +102,7 @@ class GoogleDriveHelper:
                     )
                     .execute()
                 )
-                for file in response.get("files"):
+                for file in response.get("files", []):
                     # Process change
                     print(f'Found file: {file.get("name")}, {file.get("id")}')
 
