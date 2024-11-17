@@ -41,11 +41,7 @@ class GoogleDriveHelper:
         query = f"mimeType = 'application/vnd.google-apps.folder' and trashed = false and name = '{folder_name}'"
         response = (
             self.drive_service.files()
-            .list(
-                q=query,
-                spaces="drive",
-                fields="nextPageToken, files(id, name)"
-            )
+            .list(q=query, spaces="drive", fields="nextPageToken, files(id, name)")
             .execute()
         )
         files = response.get("files", [])
@@ -66,11 +62,7 @@ class GoogleDriveHelper:
         query = f"mimeType != 'application/vnd.google-apps.folder' and trashed = false and name = '{file_name}'"
         response = (
             self.drive_service.files()
-            .list(
-                q=query,
-                spaces="drive",
-                fields="nextPageToken, files(id, name)"
-            )
+            .list(q=query, spaces="drive", fields="nextPageToken, files(id, name)")
             .execute()
         )
         files = response.get("files", [])
